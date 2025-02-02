@@ -31,6 +31,18 @@
 #define lose_color 29
 #define pause_color 30
 
+#define Deamon 40
+#define Fire 41
+#define Giant 42
+#define Snake 43
+#define Undeed 44 
+
+#define mace 45
+#define knife 46
+#define wand 47
+#define arrow 48
+#define blade 49
+
 int END = 0;
 
 typedef struct location {
@@ -49,6 +61,7 @@ typedef struct ROOM {
     location corner;
     int height;
     int width;
+    int has_door;
     location door;
     location window;
 
@@ -89,9 +102,12 @@ typedef struct ROOM {
 
     int end;
     location end_loc;
+
+    int monster;
+    location monster_loc;
 } ROOM;
 
-ROOM room[24];
+ROOM room[25];
 
 typedef struct CORRIDER {
     int n; //number of pieces
@@ -120,8 +136,10 @@ typedef struct PLAYER {
     int wand_weapon;
     int arrow_weapon;
     int blade_weapon;
+    int current_weapon;
 
     int food;
+    int magic_food;
     int fullness;
 
 } PLAYER;
@@ -136,6 +154,48 @@ typedef struct USER {
     int number_of_games;
     int experience;
 } USER;
+
+typedef struct DEAMON {
+    location position;
+    int health;
+    int move;
+    int number_of_moves;
+} DEAMON;
+
+DEAMON deamon;
+
+typedef struct FIRE {
+    location position;
+    int health;
+    int move;
+    int number_of_moves;
+} FIRE;
+
+FIRE fire;
+
+typedef struct GIANT {
+    location position;
+    int health;
+    int move;
+} GIANT;
+
+GIANT giant;
+
+typedef struct SNAKE {
+    location position;
+    int health;
+    int move;
+} SNAKE;
+
+SNAKE snake;
+
+typedef struct UNDEED {
+    location position;
+    int health;
+    int move;
+} UNDEED;
+
+UNDEED undeed;
 
 //menu functions: /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void play_music (const char* filename);
@@ -172,6 +232,8 @@ void mapfloor3();
 void featuresfloor3();
 void mapfloor4();
 void featuresfloor4();
+void mapfloor5();
+void featuresfloor5();
 
 void input_handle (int ch);
 void room_maker (location loc, int doorside, int windowside, int room_number);
@@ -214,11 +276,27 @@ void food_box ();
 void fullness_box ();
 void fullness_bar (int f);
 void hunger_health_handle ();
-void jangoolak ();
+// void jangoolak ();
 
 void show_map (int level);
 void print_room_in_window (ROOM room, WINDOW* window);
 void print_corrider_in_window (int i, WINDOW* window);
+
+void deamon_move ();
+void fire_move ();
+void giant_move ();
+void snake_move ();
+void undeed_move ();
+int is_point (int y, int x);
+
+void weapon_choose ();
+int weapon_blink;
+int spell_blink;
+int food_blink;
+void weapon_use ();
+void spell_use ();
+int fast_speed;
+void food_use ();
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -226,7 +304,6 @@ int main () {
     setlocale (LC_ALL,"");
     initscr();
     keypad(stdscr, TRUE);
-
     
     //play_music (music);
 
@@ -263,10 +340,32 @@ int main () {
     number_of_users();
 
     player.health = 5;
-    player.mace_weapon = 10;
+    player.mace_weapon = 1;
     player.gold = 0;
     player.color = blue;
     player.fullness = 10;
+    deamon.health = 5;
+    fire.health = 10;
+    giant.health = 15;
+    snake.health = 20;
+    undeed.health = 30;
+    player.current_weapon = mace;
+    weapon_blink = 0;
+    spell_blink = 0;
+    food_blink = 0;
+    deamon.move = 1;
+    fire.move = 1;
+    giant.move = 1;
+    snake.move = 1;
+    undeed.move = 1;
+    fast_speed = 0;
+    deamon.number_of_moves = 15;
+    fire.number_of_moves = 15;
+    player.magic_food = 1;
+    for (int i = 0; i < 24; i++) {
+        room[i].has_door = 1;
+    }
+    room[24].has_door = 0;
 
     while (true) {
         attron (COLOR_PAIR(main_color));
@@ -925,7 +1024,6 @@ void scoreboard () {
         int sum_gold[NUMBER_OF_USERS + 1];
         int experience[NUMBER_OF_USERS + 1];
 
-        
 
         for (int j = 0; j <= NUMBER_OF_USERS + 1; j++) {
             for (int i = COLS / 8; i <= 7 * COLS / 8; i++) 
@@ -980,8 +1078,8 @@ void scoreboard () {
         for (int i = 1; i <= NUMBER_OF_USERS; i++) {
             for (int j = 1; j < i; j++) {
                 if (user[i].score > user[j].score && user[i].rank > user[j].rank) {
-                    int temp = user[i].rank;
-                    user[i].rank = user[j].rank;
+                    int temp = user[j + 1].rank;
+                    user[j + 1].rank = user[j].rank;
                     user[j].rank = temp;
                 }
             }
@@ -1089,21 +1187,24 @@ void settings () {
                 mvprintw (1, 1, "               ");
                 // difficulty = 1;
                 player.health = 5;
-                player.mace_weapon = 10;
+                player.fullness = 10;
+                player.magic_food = 1;
                 dif++;
             }
             else if (strcmp(diff, "2") == 0) {
                 mvprintw (1, 1, "               ");
                 // difficulty = 2;
                 player.health = 4;
-                player.mace_weapon = 8;
+                player.fullness = 8;
+                player.magic_food = 1;
                 dif++;
             }
             else if (strcmp(diff, "3") == 0) {
                 mvprintw (1, 1, "               ");
                 // difficulty = 3;
                 player.health = 3;
-                player.mace_weapon = 6;
+                player.fullness = 6;
+                player.magic_food = 0;
                 dif++;
             }
             else {
@@ -1259,7 +1360,7 @@ void right_box () {
     spell_box ();
     food_box ();
     fullness_box ();
-    jangoolak ();
+    // jangoolak ();
 
 }
 
@@ -1282,7 +1383,7 @@ void draw_box () {
 
     for (int i = 6; i <= LINES / 2 - 1; i++) 
         mvprintw (i, 3 * COLS / 4 + 26, "|");
-    mvprintw (11, 3 * COLS / 4 + 27, "___________");
+    mvprintw (12, 3 * COLS / 4 + 27, "___________");
     attroff (COLOR_PAIR (regular_room_color));
 }
 
@@ -1298,84 +1399,123 @@ void info_box () {
 }
 
 void weapon_box () {
+    if (weapon_blink == 1)
+        {attron(A_BLINK);}
     attron (COLOR_PAIR (weapon_color));
     mvprintw (7, 3 * COLS / 4 + 2, "WEAPONS");
     attroff (COLOR_PAIR (weapon_color));
-    mvprintw (10, 3 * COLS / 4 + 1, "1.mace: %d", player.mace_weapon);
-    mvprintw (11, 3 * COLS / 4 + 1, "2.knife: %d", player.knife_weapon);
-    mvprintw (12, 3 * COLS / 4 + 1, "3.wand: %d", player.wand_weapon);
-    mvprintw (13, 3 * COLS / 4 + 1, "4.arrow: %d", player.arrow_weapon);
-    mvprintw (14, 3 * COLS / 4 + 1, "5.blade: %d", player.blade_weapon);
+    if (weapon_blink == 1)
+        {attroff(A_BLINK);}
+
+    if (player.current_weapon == mace)
+        attron (A_BOLD);
+    mvprintw (10, 3 * COLS / 4, "1.mace: %d ", player.mace_weapon);
+    if (player.current_weapon == mace)
+        attroff (A_BOLD);
+
+    if (player.current_weapon == knife)
+        attron (A_BOLD);
+    mvprintw (11, 3 * COLS / 4, "2.knife: %d ", player.knife_weapon);
+    if (player.current_weapon == knife)
+        attroff (A_BOLD);
+
+    if (player.current_weapon == wand)
+        attron (A_BOLD);
+    mvprintw (12, 3 * COLS / 4, "3.wand: %d ", player.wand_weapon);
+    if (player.current_weapon == wand)
+        attroff (A_BOLD);
+
+    if (player.current_weapon == arrow)
+        attron (A_BOLD);
+    mvprintw (13, 3 * COLS / 4, "4.arrow: %d ", player.arrow_weapon);
+    if (player.current_weapon == arrow)
+        attroff (A_BOLD);
+
+    if (player.current_weapon == blade)
+        attron (A_BOLD);
+    mvprintw (14, 3 * COLS / 4, "5.blade: %d ", player.blade_weapon);
+    if (player.current_weapon == blade)
+        attroff (A_BOLD);
 }
 void spell_box () {
+    if (spell_blink == 1)
+        {attron(A_BLINK);}
     attron (COLOR_PAIR (spell_color));
     mvprintw (7, 3 * COLS / 4 + 16, "SPELLS");
     attroff (COLOR_PAIR (spell_color));
-    mvprintw (10, 3 * COLS / 4 + 14, "6.health: %d", player.health_spell);
-    mvprintw (11, 3 * COLS / 4 + 14, "7.speed: %d", player.speed_spell);
-    mvprintw (12, 3 * COLS / 4 + 14, "8.damage: %d", player.damage_spell);
+    if (spell_blink == 1)
+        {attroff(A_BLINK);}
+    mvprintw (10, 3 * COLS / 4 + 13, "6.health: %d", player.health_spell);
+    mvprintw (11, 3 * COLS / 4 + 13, "7.speed: %d", player.speed_spell);
+    mvprintw (12, 3 * COLS / 4 + 13, "8.damage: %d", player.damage_spell);
 }
 void food_box () {
+    if (food_blink == 1)
+        attron (A_BLINK);
     attron (COLOR_PAIR (food_color));
     mvprintw (7, 3 * COLS / 4 + 30, "FOOD");
     attroff (COLOR_PAIR (food_color));
-    mvprintw (10, 3 * COLS / 4 + 28, "9.food: %d", player.food);
+    if (food_blink == 1)
+        attroff (A_BLINK);
+    mvprintw (10, 3 * COLS / 4 + 27, "9.food: %d", player.food);
+    mvprintw (11, 3 * COLS / 4 + 27, "0.magic\u2728 %d", player.magic_food);
 }
 void fullness_box () {
     attron (COLOR_PAIR (food_color));
-    mvprintw (13, 3 * COLS / 4 + 29, "fullness");
+    mvprintw (14, 3 * COLS / 4 + 29, "fullness");
     attroff (COLOR_PAIR (food_color));
     fullness_bar (player.fullness);
 }
 void fullness_bar (int f) {
     attron (A_BOLD);
     if (f == 0)
-        mvprintw (15, 3 * COLS / 4 + 28, "          ");
+        mvprintw (16, 3 * COLS / 4 + 28, "          ");
     else if (f == 1)
-        mvprintw (15, 3 * COLS / 4 + 28, "*         ");
+        mvprintw (16, 3 * COLS / 4 + 28, "*         ");
     else if (f == 2)
-        mvprintw (15, 3 * COLS / 4 + 28, "**        ");
+        mvprintw (16, 3 * COLS / 4 + 28, "**        ");
     else if (f == 3)
-        mvprintw (15, 3 * COLS / 4 + 28, "***       ");
+        mvprintw (16, 3 * COLS / 4 + 28, "***       ");
     else if (f == 4)
-        mvprintw (15, 3 * COLS / 4 + 28, "****      ");
+        mvprintw (16, 3 * COLS / 4 + 28, "****      ");
     else if (f == 5)
-        mvprintw (15, 3 * COLS / 4 + 28, "*****     ");
+        mvprintw (16, 3 * COLS / 4 + 28, "*****     ");
     else if (f == 6)
-        mvprintw (15, 3 * COLS / 4 + 28, "******    ");
+        mvprintw (16, 3 * COLS / 4 + 28, "******    ");
     else if (f == 7)
-        mvprintw (15, 3 * COLS / 4 + 28, "*******   ");
+        mvprintw (16, 3 * COLS / 4 + 28, "*******   ");
     else if (f == 8)
-        mvprintw (15, 3 * COLS / 4 + 28, "********  ");
+        mvprintw (16, 3 * COLS / 4 + 28, "********  ");
     else if (f == 9)
-        mvprintw (15, 3 * COLS / 4 + 28, "********* ");
+        mvprintw (16, 3 * COLS / 4 + 28, "********* ");
     else if (f == 10)
-        mvprintw (15, 3 * COLS / 4 + 28, "**********");
+        mvprintw (16, 3 * COLS / 4 + 28, "**********");
     attroff (A_BOLD);
 }
 void hunger_health_handle () {
     if (player.fullness == 10 && player.health < 5) 
         player.health++;
-    else if (player.fullness == 0 && player.health > 0)
+    if (player.fullness == 0 && player.health > 0)
         player.health--;
 }
 
-void jangoolak () {
-    mvprintw (LINES / 2 + 4, 3 * COLS / 4, "RRRRR    RRRRRRR RR   RR RRRRRRR RRRRRR");
-    mvprintw (LINES / 2 + 5, 3 * COLS / 4, "RR  RR   RR   RR RR   RR RR      RR    ");
-    mvprintw (LINES / 2 + 6, 3 * COLS / 4, "RR   RR  RR   RR RR   RR RR      RR    ");
-    mvprintw (LINES / 2 + 7, 3 * COLS / 4, "RR  RR   RR   RR RR   RR RR      RR    ");
-    mvprintw (LINES / 2 + 8, 3 * COLS / 4, "RR RR    RR   RR RR   RR RR      RR    ");
-    mvprintw (LINES / 2 + 9, 3 * COLS / 4, "RRR      RR   RR RR   RR RR RRRR RRRRRR");
-   mvprintw (LINES / 2 + 10, 3 * COLS / 4, "RR RR    RR   RR RR   RR RR   RR RR    ");
-   mvprintw (LINES / 2 + 11, 3 * COLS / 4, "RR  RR   RR   RR RR   RR RR   RR RR    ");
-   mvprintw (LINES / 2 + 12, 3 * COLS / 4, "RR   RR  RR   RR RR   RR RR   RR RR    ");
-   mvprintw (LINES / 2 + 13, 3 * COLS / 4, "RR    RR RRRRRRR RRRRRRR RRRRRRR RRRRRR");    
-}
+// void jangoolak () {
+//     mvprintw (LINES / 2 + 4, 3 * COLS / 4, "RRRRR    RRRRRRR RR   RR RRRRRRR RRRRRR");
+//     mvprintw (LINES / 2 + 5, 3 * COLS / 4, "RR  RR   RR   RR RR   RR RR      RR    ");
+//     mvprintw (LINES / 2 + 6, 3 * COLS / 4, "RR   RR  RR   RR RR   RR RR      RR    ");
+//     mvprintw (LINES / 2 + 7, 3 * COLS / 4, "RR  RR   RR   RR RR   RR RR      RR    ");
+//     mvprintw (LINES / 2 + 8, 3 * COLS / 4, "RR RR    RR   RR RR   RR RR      RR    ");
+//     mvprintw (LINES / 2 + 9, 3 * COLS / 4, "RRR      RR   RR RR   RR RR RRRR RRRRRR");
+//    mvprintw (LINES / 2 + 10, 3 * COLS / 4, "RR RR    RR   RR RR   RR RR   RR RR    ");
+//    mvprintw (LINES / 2 + 11, 3 * COLS / 4, "RR  RR   RR   RR RR   RR RR   RR RR    ");
+//    mvprintw (LINES / 2 + 12, 3 * COLS / 4, "RR   RR  RR   RR RR   RR RR   RR RR    ");
+//    mvprintw (LINES / 2 + 13, 3 * COLS / 4, "RR    RR RRRRRRR RRRRRRR RRRRRRR RRRRRR");    
+// }
 
 //map:
 
 void mapfloor1() {
+    
     featuresfloor1 ();
 
     location loc0;
@@ -1419,10 +1559,12 @@ void featuresfloor1 () {
     room[5].wand_weapon = 1;
     room[5].gold = 1;
     room[5].staircase = 1;
+    room[5].monster = Deamon;
 }
 
 void mapfloor2() {
     clear();
+    message_box (" second floor!");
     featuresfloor2 ();
     
     copy_room (6, 5);
@@ -1470,10 +1612,12 @@ void featuresfloor2 () {
     room[11].staircase = 1;
     room[11].black_gold = 1;
     room[11].gold = 1;
+    room[11].monster = Fire;
 }
 
 void mapfloor3 () {
     clear ();
+    message_box (" third floor!");
     featuresfloor3 ();
     copy_room (12, 11);
 
@@ -1512,18 +1656,22 @@ void featuresfloor3 () {
 
     room[12].speed_spell = 1;
     room[12].health_spell = 1;
+    room[12].trap = 1;
     room[13].food = 1;
     room[14].trap = 1;
+    room[14].food = 1;
     room[15].arrow_weapon = 1;
     room[16].food = 1;
     room[16].trap = 1;
     room[17].staircase = 1;
     room[17].gold = 1;
     room[17].food = 1;
+    room[17].monster = Giant;
 }
 
 void mapfloor4 () {
     clear ();
+    message_box (" fourth floor!");
     featuresfloor4 ();
     copy_room (18, 17);
 
@@ -1561,8 +1709,11 @@ void featuresfloor4 () {
     room[23].theme = treasure;
 
     room[18].speed_spell = 1;
+    room[18].trap = 1;
     room[18].damage_spell = 1;
     room[19].food = 1;
+    room[19].knife_weapon = 1;
+    room[19].trap = 1;
     room[20].trap = 1;
     room[20].gold = 1;
     room[20].black_gold = 1;
@@ -1573,7 +1724,34 @@ void featuresfloor4 () {
     room[23].gold = 1;
     room[23].black_gold = 1;
     room[23].trap = 1;
-    room[23].end = 1;
+    room[23].staircase = 1;
+    room[23].monster = Snake;
+}
+
+void mapfloor5 () {
+    featuresfloor5 ();
+    room[24].corner.x = 3 * COLS / 4 + 1;
+    room[24].corner.y = LINES / 2 + 2;
+    room[24].height = LINES / 2 - 4;
+    room[24].width = COLS / 4 - 3;
+    room_maker (room[24].corner, 0, 0, 24);
+    room[24].shown = 2;
+    print_room (room[24]);
+    
+    player.position.y = room[24].corner.y + 1;
+    player.position.x = room[24].corner.x + 1;
+
+    attron (COLOR_PAIR (player.color));
+    mvprintw (player.position.y, player.position.x, "\U0001fbc5");
+    attroff (COLOR_PAIR (player.color));
+}
+void featuresfloor5 () {
+    room[24].theme = treasure;
+    room[24].trap = 1;
+    room[24].gold = 1;
+    room[24].black_gold = 1;
+    room[24].monster = Undeed;
+    room[24].end = 1;
 }
 
 //inputs:
@@ -1582,58 +1760,119 @@ void input_handle (int input) {
     location new_position;
     new_position.x = player.position.x;
     new_position.y = player.position.y;
-    if (input == KEY_UP) {
-        new_position.y = player.position.y - 1;
-        player_move (new_position);
-    }
-    else if (input == KEY_DOWN) {
-        new_position.y = player.position.y + 1;
-        player_move (new_position);
-    }
-    else if (input == KEY_RIGHT) {
-        new_position.x = player.position.x + 1;
-        player_move (new_position);
-    }
-    else if (input == KEY_LEFT) {
-        new_position.x = player.position.x - 1;
-        player_move (new_position);
-    }
-    else if (input == 'n' || input == 'N') {
-        new_position.x = player.position.x + 1;
-        new_position.y = player.position.y + 1;
-        player_move (new_position);
-    }
-    else if (input == 'u' || input == 'U') {
-        new_position.x = player.position.x + 1;
-        new_position.y = player.position.y - 1;
-        player_move (new_position);
-    }
-    else if (input == 'y' || input == 'Y') {
-        new_position.x = player.position.x - 1;
-        new_position.y = player.position.y - 1;
-        player_move (new_position);
-    }
-    else if (input == 'b' || input == 'B') {
-        new_position.x = player.position.x - 1;
-        new_position.y = player.position.y + 1;
-        player_move (new_position);
-    }
-    else if (input == 'm' || input == 'M') {
-        show_map (player.level);
-    }
-    else if (input == 'e' || input == 'E') {
-        if (player.food > 0) {
-            if (player.fullness < 10) {
-                player.food--;
-                player.fullness++;
-                message_box (" eaten successfully!");
-            }
-            else {
-                message_box (" you're already full!");
-            }
+    if (fast_speed == 0) {
+        if (input == KEY_UP) {
+            new_position.y = player.position.y - 1;
+            player_move (new_position);
         }
-        else {
-            message_box (" you have no food!");
+        else if (input == KEY_DOWN) {
+            new_position.y = player.position.y + 1;
+            player_move (new_position);
+        }
+        else if (input == KEY_RIGHT) {
+            new_position.x = player.position.x + 1;
+            player_move (new_position);
+        }
+        else if (input == KEY_LEFT) {
+            new_position.x = player.position.x - 1;
+            player_move (new_position);
+        }
+        else if (input == 'n' || input == 'N') {
+            new_position.x = player.position.x + 1;
+            new_position.y = player.position.y + 1;
+            player_move (new_position);
+        }
+        else if (input == 'u' || input == 'U') {
+            new_position.x = player.position.x + 1;
+            new_position.y = player.position.y - 1;
+            player_move (new_position);
+        }
+        else if (input == 'y' || input == 'Y') {
+            new_position.x = player.position.x - 1;
+            new_position.y = player.position.y - 1;
+            player_move (new_position);
+        }
+        else if (input == 'b' || input == 'B') {
+            new_position.x = player.position.x - 1;
+            new_position.y = player.position.y + 1;
+            player_move (new_position);
+        }
+        else if (input == 'm' || input == 'M') {
+            show_map (player.level);
+        }
+        else if (input == 'e' || input == 'E') {
+            food_use ();
+        }
+        else if (input == 'w' || input == 'W') {
+            weapon_choose ();
+        }
+        else if (input == ' ') {
+            weapon_use ();
+        }
+        else if (input == 's' || input == 'S') {
+            spell_use ();
+        }
+    }
+
+    else if (fast_speed > 0) {
+        if (input == KEY_UP) {
+            new_position.y = player.position.y - 2;
+            player_move (new_position);
+            fast_speed--;
+        }
+        else if (input == KEY_DOWN) {
+            new_position.y = player.position.y + 2;
+            player_move (new_position);
+            fast_speed--;
+        }
+        else if (input == KEY_RIGHT) {
+            new_position.x = player.position.x + 2;
+            player_move (new_position);
+            fast_speed--;
+        }
+        else if (input == KEY_LEFT) {
+            new_position.x = player.position.x - 2;
+            player_move (new_position);
+            fast_speed--;
+        }
+        else if (input == 'n' || input == 'N') {
+            new_position.x = player.position.x + 2;
+            new_position.y = player.position.y + 2;
+            player_move (new_position);
+            fast_speed--;
+        }
+        else if (input == 'u' || input == 'U') {
+            new_position.x = player.position.x + 2;
+            new_position.y = player.position.y - 2;
+            player_move (new_position);
+            fast_speed--;
+        }
+        else if (input == 'y' || input == 'Y') {
+            new_position.x = player.position.x - 2;
+            new_position.y = player.position.y - 2;
+            player_move (new_position);
+            fast_speed--;
+        }
+        else if (input == 'b' || input == 'B') {
+            new_position.x = player.position.x - 2;
+            new_position.y = player.position.y + 2;
+            player_move (new_position);
+            fast_speed--;
+        }
+        else if (input == 'm' || input == 'M') {
+            show_map (player.level);
+        }
+        else if (input == 'e' || input == 'E') {
+            food_use ();
+        }
+        else if (input == 'w' || input == 'W') {
+            weapon_choose ();
+        }
+        else if (input == ' ') {
+            weapon_use ();
+        }
+        else if (input == 's' || input == 'S') {
+            spell_use ();
         }
     }
 
@@ -1652,6 +1891,13 @@ void player_move (location new_position) {
             mvprintw (player.position.y, player.position.x, "+");
             attroff (COLOR_PAIR (room[current_room()].theme));
         }
+
+        if (is_trap (player.position)) {
+            attron (COLOR_PAIR (error_color));
+            mvprintw (player.position.y, player.position.x, "!");
+            attroff (COLOR_PAIR (error_color));
+        }
+
         player.position.y = new_position.y;
         player.position.x = new_position.x;
 
@@ -1661,6 +1907,61 @@ void player_move (location new_position) {
         if (is_trap (player.position)) {
             player.health--;
             message_box ("you just stepped on a trap!");
+        }
+        if (is_in_room (5)) {
+            if (deamon.health > 0)
+                deamon_move ();
+            else if (room[5].monster != 0){
+                room[5].monster = 0;
+                attron (COLOR_PAIR (room[5].theme));
+                mvprintw (deamon.position.y, deamon.position.x, ".");
+                attroff (COLOR_PAIR (room[5].theme));
+                message_box ("You defeated the Deamon!");
+            }
+        }
+        else if (is_in_room (11)) {
+            if (fire.health > 0)
+                fire_move ();
+            else if (room[11].monster != 0){
+                room[11].monster = 0;
+                attron (COLOR_PAIR (room[11].theme));
+                mvprintw (fire.position.y, fire.position.x, ".");
+                attroff (COLOR_PAIR (room[11].theme));
+                message_box ("You defeated the Fire Monster!");
+            }
+        }
+        else if (is_in_room (17)) {
+            if (giant.health > 0)
+                giant_move ();
+            else if (room[17].monster != 0){
+                room[17].monster = 0;
+                attron (COLOR_PAIR (room[17].theme));
+                mvprintw (giant.position.y, giant.position.x, ".");
+                attroff (COLOR_PAIR (room[17].theme));
+                message_box ("You defeated the Giant!");
+            }
+        }
+        else if (is_in_room (23)) {
+            if (snake.health > 0)
+                snake_move ();
+            else if (room[23].monster != 0){
+                room[23].monster = 0;
+                attron (COLOR_PAIR (room[23].theme));
+                mvprintw (snake.position.y, snake.position.x, ".");
+                attroff (COLOR_PAIR (room[23].theme));
+                message_box ("You defeated the Snake!");
+            }
+        }
+        else if (is_in_room (24)) {
+            if (undeed.health > 0)
+                undeed_move ();
+            else if (room[24].monster != 0){
+                room[24].monster = 0;
+                attron (COLOR_PAIR (room[24].theme));
+                mvprintw (undeed.position.y, undeed.position.x, ".");
+                attroff (COLOR_PAIR (room[24].theme));
+                message_box ("You defeated the Undead!");
+            }
         }
     }
     else if (ch == '+') {
@@ -1795,16 +2096,16 @@ void player_move (location new_position) {
             attroff (COLOR_PAIR (player.color));
 
             if (player.level == 2) {
-                message_box (" second floor!");
                 mapfloor2();
             }
             else if (player.level == 3){
-                message_box (" third floor!");
                 mapfloor3();
             }
             else if (player.level == 4){
-                message_box (" fourth floor!");
                 mapfloor4();
+            }
+            else if (player.level == 5) {
+                mapfloor5 ();
             }
 
         }
@@ -1913,60 +2214,109 @@ void player_move (location new_position) {
         message_box ("if you wanna grab the knife, press x");
         int c = getch ();
         if (c == 'x') {
-            player.knife_weapon ++;
-            room[current_room()].knife_weapon --;
-            attron (COLOR_PAIR (room[current_room()].theme));
-            mvprintw (player.position.y, player.position.x, ".");
-            attroff (COLOR_PAIR (room[current_room()].theme));
+            if (room[current_room()].knife_weapon != 0){
+                player.knife_weapon += 10;
+                room[current_room()].knife_weapon --;
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (player.position.y, player.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
 
-            player.position.y = new_position.y;
-            player.position.x = new_position.x;
+                player.position.y = new_position.y;
+                player.position.x = new_position.x;
 
-            attron (COLOR_PAIR (player.color));
-            mvprintw (player.position.y, player.position.x, "\U0001fbc5");
-            attroff (COLOR_PAIR (player.color));
-            message_box (" knife ++ !");
-            player.fullness--;
+                attron (COLOR_PAIR (player.color));
+                mvprintw (player.position.y, player.position.x, "\U0001fbc5");
+                attroff (COLOR_PAIR (player.color));
+                message_box (" knife += 10 !");
+                player.fullness--;
+            }
+            else if (room[current_room()].knife_weapon == 0) {
+                player.knife_weapon ++;
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (player.position.y, player.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+
+                player.position.y = new_position.y;
+                player.position.x = new_position.x;
+
+                attron (COLOR_PAIR (player.color));
+                mvprintw (player.position.y, player.position.x, "\U0001fbc5");
+                attroff (COLOR_PAIR (player.color));
+                message_box (" knife ++ !");
+            }
         }
     }
     else if (ch == 'w') {
         message_box ("if you wanna grab the wand, press x");
         int c = getch ();
         if (c == 'x') {
-            player.wand_weapon ++;
-            room[current_room()].wand_weapon --;
-            attron (COLOR_PAIR (room[current_room()].theme));
-            mvprintw (player.position.y, player.position.x, ".");
-            attroff (COLOR_PAIR (room[current_room()].theme));
+            if (room[current_room()].wand_weapon != 0){
+                player.wand_weapon += 8;
+                room[current_room()].wand_weapon --;
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (player.position.y, player.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
 
-            player.position.y = new_position.y;
-            player.position.x = new_position.x;
+                player.position.y = new_position.y;
+                player.position.x = new_position.x;
 
-            attron (COLOR_PAIR (player.color));
-            mvprintw (player.position.y, player.position.x, "\U0001fbc5");
-            attroff (COLOR_PAIR (player.color));
-            message_box (" wand ++ !");
-            player.fullness--;
+                attron (COLOR_PAIR (player.color));
+                mvprintw (player.position.y, player.position.x, "\U0001fbc5");
+                attroff (COLOR_PAIR (player.color));
+                message_box (" wand += 8 !");
+                player.fullness--;
+            }
+            else if (room[current_room()].wand_weapon == 0) {
+                player.wand_weapon += 8;
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (player.position.y, player.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+
+                player.position.y = new_position.y;
+                player.position.x = new_position.x;
+
+                attron (COLOR_PAIR (player.color));
+                mvprintw (player.position.y, player.position.x, "\U0001fbc5");
+                attroff (COLOR_PAIR (player.color));
+                message_box (" wand ++ !");
+            }
         }
     }
     else if (ch == 'a') {
         message_box ("if you wanna grab the arrow, press x");
         int c = getch ();
         if (c == 'x') {
-            player.arrow_weapon ++;
-            room[current_room()].arrow_weapon --;
-            attron (COLOR_PAIR (room[current_room()].theme));
-            mvprintw (player.position.y, player.position.x, ".");
-            attroff (COLOR_PAIR (room[current_room()].theme));
+            if (room[current_room()].arrow_weapon != 0) {
+                player.arrow_weapon += 20;
+                room[current_room()].arrow_weapon --;
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (player.position.y, player.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
 
-            player.position.y = new_position.y;
-            player.position.x = new_position.x;
+                player.position.y = new_position.y;
+                player.position.x = new_position.x;
 
-            attron (COLOR_PAIR (player.color));
-            mvprintw (player.position.y, player.position.x, "\U0001fbc5");
-            attroff (COLOR_PAIR (player.color));
-            message_box (" arrow ++ !");
-            player.fullness--;
+                attron (COLOR_PAIR (player.color));
+                mvprintw (player.position.y, player.position.x, "\U0001fbc5");
+                attroff (COLOR_PAIR (player.color));
+                message_box (" arrow += 20 !");
+                player.fullness--;
+            }
+            else if (room[current_room()].arrow_weapon == 0) {
+                player.arrow_weapon ++;
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (player.position.y, player.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+
+                player.position.y = new_position.y;
+                player.position.x = new_position.x;
+
+                attron (COLOR_PAIR (player.color));
+                mvprintw (player.position.y, player.position.x, "\U0001fbc5");
+                attroff (COLOR_PAIR (player.color));
+                message_box (" arrow ++ !");
+            }
+            
         }
     }
     else if (ch == 'b') {
@@ -2034,6 +2384,11 @@ int is_in_room (int i) {
             return 2;
         }
     }
+    else if (i == 24 && player.level == 5) {
+        if (player.position.x > room[i].corner.x && player.position.x < room[i].corner.x + room[i].width && player.position.y > room[i].corner.y && player.position.y < room[i].corner.y + room[i].height) {
+            return 1;
+        }
+    }
 
     return 0;
 }
@@ -2054,7 +2409,7 @@ int current_section () {   /*unnecessary*/
 }
 
 int current_room () {
-    for (int i = 0; i < 24; i++) {
+    for (int i = 0; i < 25; i++) {
         if (is_in_room(i) >= 1)
             return i;
     }
@@ -2072,7 +2427,7 @@ int is_going_to() {
 }
 
 int is_inside() {
-    for (int i = 0; i < 24; i++) {
+    for (int i = 0; i <= 24; i++) {
         if (is_in_room(i) == 1)
             return 1;
     }
@@ -2235,8 +2590,10 @@ void copy_room (int i_copy, int i) {
 void room_maker (location loc, int doorside, int windowside, int i) {
     room[i].corner.x = loc.x;
     room[i].corner.y = loc.y;
-    room[i].height = (rand() % (LINES / 2 - (loc.y % (LINES / 2)) - 10)) + 8;
-    room[i].width = (rand() % (COLS / 4 - (loc.x % (COLS / 4)) - 9)) + 7;
+    if (i < 24) {
+        room[i].height = (rand() % (LINES / 2 - (loc.y % (LINES / 2)) - 10)) + 8;
+        room[i].width = (rand() % (COLS / 4 - (loc.x % (COLS / 4)) - 9)) + 7;
+    }
     int height = room[i].height, width = room[i].width;
     //doorside
     if (doorside == 0) {
@@ -2326,12 +2683,33 @@ void room_maker (location loc, int doorside, int windowside, int i) {
         room[i].staircase_loc.x = room[i].corner.x + 1;
     }
     if (room[i].end == 1) {
-        room[i].end_loc.y = room[i].corner.y + 1;
-        room[i].end_loc.x = room[i].corner.x + 1;
+        room[i].end_loc.y = room[i].corner.y + room[i].height - 1;
+        room[i].end_loc.x = room[i].corner.x + room[i].width - 1;
     }
     if (room[i].trap == 1) {
         room[i].trap_loc.y = room[i].corner.y + 2 + (rand() % (room[i].height - 3));
         room[i].trap_loc.x = room[i].corner.x + 2 + (rand() % (room[i].width - 3));
+    }
+
+    if (room[i].monster == Deamon) {
+        deamon.position.y = room[i].corner.y + room[i].height - 1;
+        deamon.position.x = room[i].corner.x + 1;
+    }
+    if (room[i].monster == Fire) {
+        fire.position.y = room[i].corner.y + room[i].height - 1;
+        fire.position.x = room[i].corner.x + 1;
+    }
+    if (room[i].monster == Giant) {
+        giant.position.y = room[i].corner.y + room[i].height - 1;
+        giant.position.x = room[i].corner.x + 1;
+    }
+    if (room[i].monster == Snake) {
+        snake.position.y = room[i].corner.y + room[i].height - 1;
+        snake.position.x = room[i].corner.x + 1;
+    }
+    if (room[i].monster == Undeed) {
+        undeed.position.y = room[i].corner.y + room[i].height - 1;
+        undeed.position.x = room[i].corner.x + 1;
     }
 }
 
@@ -2351,8 +2729,11 @@ void print_room (ROOM room) {
         mvprintw (i, room.corner.x, "|");
         mvprintw (i, room.corner.x + room.width, "|");
     }
-    mvprintw (room.door.y, room.door.x, "+");
-    mvprintw (room.window.y, room.window.x, "=");
+    if (room.has_door != 0) {
+        mvprintw (room.door.y, room.door.x, "+");
+        mvprintw (room.window.y, room.window.x, "=");
+    }
+    
 
     for (int i = room.corner.x + 1; i < room.corner.x + room.width; i++) {
         for (int j = room.corner.y + 1; j < room.corner.y + room.height; j++) {
@@ -2431,6 +2812,25 @@ void print_room (ROOM room) {
         mvprintw (room.end_loc.y, room.end_loc.x, /*"\U0001328D"*/ "E"); 
         attroff (COLOR_PAIR (regular_room_color));
     }
+
+    attron (COLOR_PAIR(enemy_color));
+    if (room.monster == Deamon) {
+        mvprintw (room.corner.y + room.height - 1, room.corner.x + 1, "D");
+    }
+    if (room.monster == Fire) {
+        mvprintw (room.corner.y + room.height - 1, room.corner.x + 1, "F");
+    }
+    if (room.monster == Giant) {
+        mvprintw (room.corner.y + room.height - 1, room.corner.x + 1, "G");
+    }
+    if (room.monster == Snake) {
+        mvprintw (room.corner.y + room.height - 1, room.corner.x + 1, "S");
+    }
+    if (room.monster == Undeed) {
+        mvprintw (room.corner.y + room.height - 1, room.corner.x + 1, "U");
+    }
+    attroff(COLOR_PAIR(enemy_color));
+    
 
     if (room.theme == regular)
         attroff (COLOR_PAIR (regular_room_color));
@@ -2997,6 +3397,47 @@ void the_end () {
             while ((c = getch()) != 'e') {
                 border_make();
             }
+            save_game();
+            player.gold = 0;
+            player.level = 0;
+            player.health = 5;
+            player.gold = 0;
+            player.black_gold = 0;
+
+            player.speed_spell = 0;
+            player.health_spell = 0;
+            player.damage_spell = 0;
+
+            player.mace_weapon = 10;
+            player.knife_weapon = 0;
+            player.wand_weapon = 0;
+            player.arrow_weapon = 0;
+            player.blade_weapon = 0;
+
+            player.food = 0;
+            player.fullness = 10;
+
+            deamon.health = 5;
+            fire.health = 10;
+            giant.health = 15;
+            snake.health = 20;
+            undeed.health = 30;
+            player.current_weapon = mace;
+            weapon_blink = 0;
+            spell_blink = 0;
+            deamon.move = 1;
+            fire.move = 1;
+            giant.move = 1;
+            snake.move = 1;
+            undeed.move = 1;
+            fast_speed = 0;
+            deamon.number_of_moves = 15;
+            fire.number_of_moves = 15;
+            for (int i = 0; i < 24; i++) {
+                room[i].has_door = 1;
+            }
+            room[24].has_door = 0;
+            END = 0;
             return;
         }
         else if (player.health > 0) {
@@ -3017,6 +3458,47 @@ void the_end () {
             while ((c = getch()) != 'e') {
                 border_make();
             }
+            save_game();
+            player.gold = 0;
+            player.level = 0;
+            player.health = 5;
+            player.gold = 0;
+            player.black_gold = 0;
+
+            player.speed_spell = 0;
+            player.health_spell = 0;
+            player.damage_spell = 0;
+
+            player.mace_weapon = 10;
+            player.knife_weapon = 0;
+            player.wand_weapon = 0;
+            player.arrow_weapon = 0;
+            player.blade_weapon = 0;
+
+            player.food = 0;
+            player.fullness = 10;
+
+            deamon.health = 5;
+            fire.health = 10;
+            giant.health = 15;
+            snake.health = 20;
+            undeed.health = 30;
+            player.current_weapon = mace;
+            weapon_blink = 0;
+            spell_blink = 0;
+            deamon.move = 1;
+            fire.move = 1;
+            giant.move = 1;
+            snake.move = 1;
+            undeed.move = 1;
+            fast_speed = 0;
+            deamon.number_of_moves = 15;
+            fire.number_of_moves = 15;
+            for (int i = 0; i < 24; i++) {
+                room[i].has_door = 1;
+            }
+            room[24].has_door = 0;
+            END = 0;
             return;
         }
         else if (player.health == 0) {
@@ -3037,6 +3519,47 @@ void the_end () {
             while ((c = getch()) != 'e') {
                 border_make();
             }
+            save_game();
+            player.gold = 0;
+            player.level = 0;
+            player.health = 5;
+            player.gold = 0;
+            player.black_gold = 0;
+
+            player.speed_spell = 0;
+            player.health_spell = 0;
+            player.damage_spell = 0;
+
+            player.mace_weapon = 10;
+            player.knife_weapon = 0;
+            player.wand_weapon = 0;
+            player.arrow_weapon = 0;
+            player.blade_weapon = 0;
+
+            player.food = 0;
+            player.fullness = 10;
+
+            deamon.health = 5;
+            fire.health = 10;
+            giant.health = 15;
+            snake.health = 20;
+            undeed.health = 30;
+            player.current_weapon = mace;
+            weapon_blink = 0;
+            spell_blink = 0;
+            deamon.move = 1;
+            fire.move = 1;
+            giant.move = 1;
+            snake.move = 1;
+            undeed.move = 1;
+            fast_speed = 0;
+            deamon.number_of_moves = 15;
+            fire.number_of_moves = 15;
+            for (int i = 0; i < 24; i++) {
+                room[i].has_door = 1;
+            }
+            room[24].has_door = 0;
+            END = 0;
             return;
         }
     }
@@ -3061,6 +3584,47 @@ void the_end () {
             while ((c = getch()) != 'e') {
                 border_make();
             }
+            save_game();
+            player.gold = 0;
+            player.level = 0;
+            player.health = 5;
+            player.gold = 0;
+            player.black_gold = 0;
+
+            player.speed_spell = 0;
+            player.health_spell = 0;
+            player.damage_spell = 0;
+
+            player.mace_weapon = 10;
+            player.knife_weapon = 0;
+            player.wand_weapon = 0;
+            player.arrow_weapon = 0;
+            player.blade_weapon = 0;
+
+            player.food = 0;
+            player.fullness = 10;
+
+            deamon.health = 5;
+            fire.health = 10;
+            giant.health = 15;
+            snake.health = 20;
+            undeed.health = 30;
+            player.current_weapon = mace;
+            weapon_blink = 0;
+            spell_blink = 0;
+            deamon.move = 1;
+            fire.move = 1;
+            giant.move = 1;
+            snake.move = 1;
+            undeed.move = 1;
+            fast_speed = 0;
+            END = 0;
+            deamon.number_of_moves = 15;
+            fire.number_of_moves = 15;
+            for (int i = 0; i < 24; i++) {
+                room[i].has_door = 1;
+            }
+            room[24].has_door = 0;
             return;
         }
         else if (player.health > 0) {
@@ -3083,6 +3647,47 @@ void the_end () {
             while ((c = getch()) != 'e') {
                 border_make();
             }
+            save_game();
+            player.gold = 0;
+            player.level = 0;
+            player.health = 5;
+            player.gold = 0;
+            player.black_gold = 0;
+
+            player.speed_spell = 0;
+            player.health_spell = 0;
+            player.damage_spell = 0;
+
+            player.mace_weapon = 10;
+            player.knife_weapon = 0;
+            player.wand_weapon = 0;
+            player.arrow_weapon = 0;
+            player.blade_weapon = 0;
+
+            player.food = 0;
+            player.fullness = 10;
+
+            deamon.health = 5;
+            fire.health = 10;
+            giant.health = 15;
+            snake.health = 20;
+            undeed.health = 30;
+            player.current_weapon = mace;
+            weapon_blink = 0;
+            spell_blink = 0;
+            deamon.move = 1;
+            fire.move = 1;
+            giant.move = 1;
+            snake.move = 1;
+            undeed.move = 1;
+            fast_speed = 0;
+            deamon.number_of_moves = 15;
+            fire.number_of_moves = 15;
+            for (int i = 0; i < 24; i++) {
+                room[i].has_door = 1;
+            }
+            room[24].has_door = 0;
+            END = 0;
             return;
         }
         else if (player.health == 0) {
@@ -3105,30 +3710,53 @@ void the_end () {
             while ((c = getch()) != 'e') {
                 border_make();
             }
+
+            save_game();
+            player.gold = 0;
+            player.level = 0;
+            player.health = 5;
+            player.gold = 0;
+            player.black_gold = 0;
+
+            player.speed_spell = 0;
+            player.health_spell = 0;
+            player.damage_spell = 0;
+
+            player.mace_weapon = 10;
+            player.knife_weapon = 0;
+            player.wand_weapon = 0;
+            player.arrow_weapon = 0;
+            player.blade_weapon = 0;
+
+            player.food = 0;
+            player.fullness = 10;
+
+            deamon.health = 5;
+            fire.health = 10;
+            giant.health = 15;
+            snake.health = 20;
+            undeed.health = 30;
+            player.current_weapon = mace;
+            weapon_blink = 0;
+            spell_blink = 0;
+            deamon.move = 1;
+            fire.move = 1;
+            giant.move = 1;
+            snake.move = 1;
+            undeed.move = 1;
+            fast_speed = 0;
+            deamon.number_of_moves = 15;
+            fire.number_of_moves = 15;
+            for (int i = 0; i < 24; i++) {
+                room[i].has_door = 1;
+            }
+            room[24].has_door = 0;
+            END = 0;
             return;
         }
     }
 
-    save_game();
-    player.gold = 0;
-    player.level = 0;
-    player.health = 5;
-    player.gold = 0;
-    player.black_gold = 0;
-
-    player.speed_spell = 0;
-    player.health_spell = 0;
-    player.damage_spell = 0;
-
-    player.mace_weapon = 10;
-    player.knife_weapon = 0;
-    player.wand_weapon = 0;
-    player.arrow_weapon = 0;
-    player.blade_weapon = 0;
-
-    player.food = 0;
-
-    END = 0;
+    
 }
 
 
@@ -3205,3 +3833,1901 @@ void save_game () {
     f = fopen ("save.txt", "w");
     fprintf (f, "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", player.id, player.position.y, player.position.x, player.color, player.level, player.health, player.gold, player.black_gold, player.speed_spell, player.health_spell, player.damage_spell, player.mace_weapon, player.knife_weapon, player.wand_weapon, player.arrow_weapon, player.blade_weapon, player.food, player.fullness);
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void deamon_move () {
+    if (deamon.number_of_moves > 0) {
+        if (abs(player.position.x - deamon.position.x) + abs(player.position.y - deamon.position.y) <= 2) {
+            if (player.fullness > 0)
+                player.fullness--;
+            message_box (" Deamon hit you!");
+        }
+        if (abs(player.position.y - deamon.position.y) > 0) {
+            if (player.position.y > deamon.position.y) {
+                if (is_point (deamon.position.y + 1, deamon.position.x)) {
+                    attron (COLOR_PAIR (room[current_room()].theme));
+                    mvprintw (deamon.position.y, deamon.position.x, ".");
+                    attroff (COLOR_PAIR (room[current_room()].theme));
+                    deamon.position.y++;
+                    deamon.number_of_moves--;
+                    attron (COLOR_PAIR (enemy_color));
+                    mvprintw (deamon.position.y, deamon.position.x, "D");
+                    attroff (COLOR_PAIR (enemy_color));
+                }
+            }
+            else if (player.position.y < deamon.position.y) {
+                if (is_point (deamon.position.y - 1, deamon.position.x)) {
+                    attron (COLOR_PAIR (room[current_room()].theme));
+                    mvprintw (deamon.position.y, deamon.position.x, ".");
+                    attroff (COLOR_PAIR (room[current_room()].theme));
+                    deamon.position.y--;
+                    deamon.number_of_moves--;
+                    attron (COLOR_PAIR (enemy_color));
+                    mvprintw (deamon.position.y, deamon.position.x, "D");
+                    attroff (COLOR_PAIR (enemy_color));
+                }
+            }
+        }
+        else if (abs(player.position.x - deamon.position.x) > 0) {
+            if (player.position.x > deamon.position.x) {
+                if (is_point (deamon.position.y, deamon.position.x + 1)) {
+                    attron (COLOR_PAIR (room[current_room()].theme));
+                    mvprintw (deamon.position.y, deamon.position.x, ".");
+                    attroff (COLOR_PAIR (room[current_room()].theme));
+                    deamon.position.x++;
+                    deamon.number_of_moves--;
+                    attron (COLOR_PAIR (enemy_color));
+                    mvprintw (deamon.position.y, deamon.position.x, "D");
+                    attroff (COLOR_PAIR (enemy_color));
+                }
+            }
+            else if (player.position.x < deamon.position.x) {
+                if (is_point (deamon.position.y, deamon.position.x - 1)) {
+                    attron (COLOR_PAIR (room[current_room()].theme));
+                    mvprintw (deamon.position.y, deamon.position.x, ".");
+                    attroff (COLOR_PAIR (room[current_room()].theme));
+                    deamon.position.x--;
+                    deamon.number_of_moves--;
+                    attron (COLOR_PAIR (enemy_color));
+                    mvprintw (deamon.position.y, deamon.position.x, "D");
+                    attroff (COLOR_PAIR (enemy_color));
+                }
+            }
+        }
+    }
+}
+void fire_move () {
+    if (fire.number_of_moves > 0) {
+        if (abs(player.position.x - fire.position.x) + abs(player.position.y - fire.position.y) <= 2) {
+            if (player.fullness > 0)
+                player.fullness--;
+            message_box (" Fire breathing monster hit you!");
+        }
+        int check = 0;
+        if (abs(player.position.y - fire.position.y) > 0) {
+            if (player.position.y > fire.position.y) {
+                if (is_point (fire.position.y + 1, fire.position.x)) {
+                    attron (COLOR_PAIR (room[current_room()].theme));
+                    mvprintw (fire.position.y, fire.position.x, ".");
+                    attroff (COLOR_PAIR (room[current_room()].theme));
+                    fire.position.y++;
+                    fire.number_of_moves--;
+                    attron (COLOR_PAIR (enemy_color));
+                    mvprintw (fire.position.y, fire.position.x, "F");
+                    attroff (COLOR_PAIR (enemy_color));
+                    check++;
+                }
+            }
+            else if (player.position.y < fire.position.y) {
+                if (is_point (fire.position.y - 1, fire.position.x)) {
+                    attron (COLOR_PAIR (room[current_room()].theme));
+                    mvprintw (fire.position.y, fire.position.x, ".");
+                    attroff (COLOR_PAIR (room[current_room()].theme));
+                    fire.position.y--;
+                    fire.number_of_moves--;
+                    attron (COLOR_PAIR (enemy_color));
+                    mvprintw (fire.position.y, fire.position.x, "F");
+                    attroff (COLOR_PAIR (enemy_color));
+                    check++;
+                }
+            }
+        }
+        if (abs(player.position.x - fire.position.x) > 0 && check == 0) {
+            if (player.position.x > fire.position.x) {
+                if (is_point (fire.position.y, fire.position.x + 1)) {
+                    attron (COLOR_PAIR (room[current_room()].theme));
+                    mvprintw (fire.position.y, fire.position.x, ".");
+                    attroff (COLOR_PAIR (room[current_room()].theme));
+                    fire.position.x++;
+                    fire.number_of_moves--;
+                    attron (COLOR_PAIR (enemy_color));
+                    mvprintw (fire.position.y, fire.position.x, "F");
+                    attroff (COLOR_PAIR (enemy_color));
+                }
+            }
+            else if (player.position.x < fire.position.x) {
+                if (is_point (fire.position.y, fire.position.x - 1)) {
+                    attron (COLOR_PAIR (room[current_room()].theme));
+                    mvprintw (fire.position.y, fire.position.x, ".");
+                    attroff (COLOR_PAIR (room[current_room()].theme));
+                    fire.position.x--;
+                    fire.number_of_moves--;
+                    attron (COLOR_PAIR (enemy_color));
+                    mvprintw (fire.position.y, fire.position.x, "F");
+                    attroff (COLOR_PAIR (enemy_color));
+                }
+            }
+        }
+    }
+}
+void giant_move () {
+    if (abs(player.position.x - giant.position.x) + abs(player.position.y - giant.position.y) <= 2) {
+        if (player.fullness > 0)
+            player.fullness--;
+        message_box (" Giant hit you!");
+    }
+    int check = 0;
+    if (abs(player.position.y - giant.position.y) > 0) {
+        if (player.position.y > giant.position.y) {
+            if (is_point (giant.position.y + 1, giant.position.x)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (giant.position.y, giant.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                giant.position.y++;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (giant.position.y, giant.position.x, "G");
+                attroff (COLOR_PAIR (enemy_color));
+                check++;
+            }
+        }
+        else if (player.position.y < giant.position.y) {
+            if (is_point (giant.position.y - 1, giant.position.x)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (giant.position.y, giant.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                giant.position.y--;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (giant.position.y, giant.position.x, "G");
+                attroff (COLOR_PAIR (enemy_color));
+                check++;
+            }
+        }
+    }
+    if (abs(player.position.x - giant.position.x) > 0 && check == 0) {
+        if (player.position.x > giant.position.x) {
+            if (is_point (giant.position.y, giant.position.x + 1)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (giant.position.y, giant.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                giant.position.x++;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (giant.position.y, giant.position.x, "G");
+                attroff (COLOR_PAIR (enemy_color));
+            }
+        }
+        else if (player.position.x < giant.position.x) {
+            if (is_point (giant.position.y, giant.position.x - 1)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (giant.position.y, giant.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                giant.position.x--;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (giant.position.y, giant.position.x, "G");
+                attroff (COLOR_PAIR (enemy_color));
+            }
+        }
+    }
+}
+void snake_move () {
+    if (abs(player.position.x - snake.position.x) + abs(player.position.y - snake.position.y) <= 2) {
+        if (player.fullness > 0)
+            player.fullness--;
+        message_box (" Snake hit you!");
+    }
+    int check = 0;
+    if (abs(player.position.y - snake.position.y) > 0) {
+        if (player.position.y > snake.position.y) {
+            if (is_point (snake.position.y + 1, snake.position.x)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (snake.position.y, snake.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                snake.position.y++;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (snake.position.y, snake.position.x, "S");
+                attroff (COLOR_PAIR (enemy_color));
+                check++;
+            }
+        }
+        else if (player.position.y < snake.position.y) {
+            if (is_point (snake.position.y - 1, snake.position.x)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (snake.position.y, snake.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                snake.position.y--;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (snake.position.y, snake.position.x, "S");
+                attroff (COLOR_PAIR (enemy_color));
+                check++;
+            }
+        }
+    }
+    if (abs(player.position.x - snake.position.x) > 0 && check == 0) {
+        if (player.position.x > snake.position.x) {
+            if (is_point (snake.position.y, snake.position.x + 1)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (snake.position.y, snake.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                snake.position.x++;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (snake.position.y, snake.position.x, "S");
+                attroff (COLOR_PAIR (enemy_color));
+            }
+        }
+        else if (player.position.x < snake.position.x) {
+            if (is_point (snake.position.y, snake.position.x - 1)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (snake.position.y, snake.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                snake.position.x--;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (snake.position.y, snake.position.x, "S");
+                attroff (COLOR_PAIR (enemy_color));
+            }
+        }
+    }
+}
+void undeed_move () {
+    if (abs(player.position.x - undeed.position.x) + abs(player.position.y - undeed.position.y) <= 2) {
+        if (player.fullness > 0)
+            player.fullness--;
+        message_box (" Undead hit you!");
+    }
+    int check = 0;
+    if (abs(player.position.x - undeed.position.x) > 0) {
+        if (player.position.x > undeed.position.x) {
+            if (is_point (undeed.position.y, undeed.position.x + 1)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (undeed.position.y, undeed.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                undeed.position.x++;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (undeed.position.y, undeed.position.x, "U");
+                attroff (COLOR_PAIR (enemy_color));
+            }
+        }
+        else if (player.position.x < undeed.position.x) {
+            if (is_point (undeed.position.y, undeed.position.x - 1)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (undeed.position.y, undeed.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                undeed.position.x--;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (undeed.position.y, undeed.position.x, "U");
+                attroff (COLOR_PAIR (enemy_color));
+            }
+        }
+    }
+    if (abs(player.position.y - undeed.position.y) > 0 && check == 0) {
+        if (player.position.y > undeed.position.y) {
+            if (is_point (undeed.position.y + 1, undeed.position.x)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (undeed.position.y, undeed.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                undeed.position.y++;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (undeed.position.y, undeed.position.x, "U");
+                attroff (COLOR_PAIR (enemy_color));
+                check++;
+            }
+        }
+        else if (player.position.y < undeed.position.y) {
+            if (is_point (undeed.position.y - 1, undeed.position.x)) {
+                attron (COLOR_PAIR (room[current_room()].theme));
+                mvprintw (undeed.position.y, undeed.position.x, ".");
+                attroff (COLOR_PAIR (room[current_room()].theme));
+                undeed.position.y--;
+                attron (COLOR_PAIR (enemy_color));
+                mvprintw (undeed.position.y, undeed.position.x, "U");
+                attroff (COLOR_PAIR (enemy_color));
+                check++;
+            }
+        }
+    }
+}
+int is_point (int y, int x) {
+    char ch = mvinch (y, x) & A_CHARTEXT;
+    if (ch == '.') {
+        return 1;
+    }
+    return 0;
+}
+
+
+void weapon_choose () {
+    message_box ("choose a weapon! (press w to get back.)");
+    weapon_blink = 1;
+    while (1) {
+        weapon_box ();
+        int c = getch ();
+        if (c == '1') {
+            if (player.mace_weapon > 0) {
+                message_box ("Your default weapon is mace. press w.");
+                player.current_weapon = mace;
+            }
+            else 
+                message_box ("You have no mace!");
+        }
+        else if (c == '2') {
+            if (player.knife_weapon > 0) {
+                message_box ("Your default weapon is knife. Press w.");
+                player.current_weapon = knife;
+            }
+            else 
+                message_box ("You have no knife!");
+        }
+        else if (c == '3') {
+            if (player.wand_weapon > 0) {
+                message_box ("Your default weapon is wand. Press w.");
+                player.current_weapon = wand;
+            }
+            else 
+                message_box ("You have no wand!");
+        }
+        else if (c == '4') {
+            if (player.arrow_weapon > 0) {
+                message_box ("Your default weapon is arrow. Press w.");
+                player.current_weapon = arrow;
+            }
+            else 
+                message_box ("You have no arrow!");
+        }
+        else if (c == '5') {
+            if (player.blade_weapon > 0) {
+                message_box ("Your default weapon is blade. Press w.");
+                player.current_weapon = blade;
+            }
+            else 
+                message_box ("You have no blade!");
+        }
+        else if (c == 'w' || c == 'W') {
+            weapon_blink = 0;
+            return;
+        }
+    }
+}
+
+void weapon_use () {
+    if (player.current_weapon == mace) {
+        if (player.mace_weapon == 0) {
+            message_box ("You have no mace!");
+        }
+        else if (player.mace_weapon > 0) {
+            // player.mace_weapon -= 1;
+            if (current_room() == 5) {
+                if (deamon.position.x <= player.position.x + 1 && deamon.position.x >= player.position.x - 1 && deamon.position.y <= player.position.y + 1 && deamon.position.y >= player.position.y - 1) {
+                    if (deamon.health >= 5)
+                        deamon.health -= 5;
+                    else if (deamon.health < 5)
+                        deamon.health = 0;
+                    message_box ("You hit the Deamon!");
+                }
+                else {
+                    message_box ("No enemy around here!");
+                }
+            }
+            else if (current_room() == 11) {
+                if (fire.position.x <= player.position.x + 1 && fire.position.x >= player.position.x - 1 && fire.position.y <= player.position.y + 1 && fire.position.y >= player.position.y - 1) {
+                    if (fire.health >= 5)
+                        fire.health -= 5;
+                    else if (fire.health < 5)
+                        fire.health = 0;
+                    message_box ("You hit the Fire Monster!");
+                }
+                else {
+                    message_box ("No enemy around here!");
+                }
+            }
+            else if (current_room() == 17) {
+                if (giant.position.x <= player.position.x + 1 && giant.position.x >= player.position.x - 1 && giant.position.y <= player.position.y + 1 && giant.position.y >= player.position.y - 1) {
+                    if (giant.health >= 5)
+                        giant.health -= 5;
+                    else if (giant.health < 5)
+                        giant.health = 0;
+                    message_box ("You hit the Giant!");
+                }
+                else {
+                    message_box ("No enemy around here!");
+                }
+            }
+            else if (current_room() == 23) {
+                if (snake.position.x <= player.position.x + 1 && snake.position.x >= player.position.x - 1 && snake.position.y <= player.position.y + 1 && snake.position.y >= player.position.y - 1) {
+                    if (snake.health >= 5)
+                        snake.health -= 5;
+                    else if (snake.health < 5)
+                        snake.health = 0;
+                    message_box ("You hit the Snake!");
+                }
+                else {
+                    message_box ("No enemy around here!");
+                }
+            }
+            else if (current_room() == 24) {
+                if (undeed.position.x <= player.position.x + 1 && undeed.position.x >= player.position.x - 1 && undeed.position.y <= player.position.y + 1 && undeed.position.y <= player.position.y - 1) {
+                    if (undeed.health >= 5)
+                        undeed.health -= 5;
+                    else if (undeed.health < 5)
+                        undeed.health = 0;
+                    message_box ("You hit the Undead!");
+                }
+                else {
+                    message_box ("No enemy around here!");
+                }
+            }
+            else {
+                message_box ("No enemy around here!");
+                // attron (COLOR_PAIR (weapon_color));
+                // if (is_point (player.position.y, player.position.x + 1)) 
+                //     mvprintw (player.position.y, player.position.x + 1, "m");
+                // else if (is_point (player.position.y, player.position.x - 1))
+                //     mvprintw (player.position.y, player.position.x - 1, "m");
+                // else if (is_point (player.position.y + 1, player.position.x))
+                //     mvprintw (player.position.y + 1, player.position.x, "m");
+                // else if (is_point (player.position.y - 1, player.position.x))
+                //     mvprintw (player.position.y - 1, player.position.x, "m");
+                // attroff (COLOR_PAIR (weapon_color));
+            }
+        }
+    }
+
+    else if (player.current_weapon == blade) {
+        if (player.blade_weapon == 0) {
+            message_box ("You have no blade!");
+        }
+        else if (player.blade_weapon > 0) {
+            if (current_room() == 5) {
+                if (deamon.position.x <= player.position.x + 1 && deamon.position.x >= player.position.x - 1 && deamon.position.y <= player.position.y + 1 && deamon.position.y >= player.position.y - 1) {
+                    if (deamon.health >= 10)
+                        deamon.health -= 10;
+                    else if (deamon.health < 10)
+                        deamon.health = 0;
+                    message_box ("You hit the Deamon!");
+                }
+            }
+            else if (current_room() == 11) {
+                if (fire.position.x <= player.position.x + 1 && fire.position.x >= player.position.x - 1 && fire.position.y <= player.position.y + 1 && fire.position.y >= player.position.y - 1) {
+                    if (fire.health >= 10)
+                        fire.health -= 10;
+                    else if (fire.health < 10)
+                        fire.health = 0;
+                    message_box ("You hit the Fire Monster!");
+                }
+            }
+            else if (current_room() == 17) {
+                if (giant.position.x <= player.position.x + 1 && giant.position.x >= player.position.x - 1 && giant.position.y <= player.position.y + 1 && giant.position.y >= player.position.y - 1) {
+                    if (giant.health >= 10)
+                        giant.health -= 10;
+                    else if (giant.health < 10)
+                        giant.health = 0;
+                    message_box ("You hit the Giant!");
+                }
+            }
+            else if (current_room() == 23) {
+                if (snake.position.x <= player.position.x + 1 && snake.position.x >= player.position.x - 1 && snake.position.y <= player.position.y + 1 && snake.position.y >= player.position.y - 1) {
+                    if (snake.health >= 10)
+                        snake.health -= 10;
+                    else if (snake.health < 10)
+                        snake.health = 0;
+                    message_box ("You hit the Snake!");
+                }
+            }
+            else if (current_room() == 24) {
+                if (undeed.position.x <= player.position.x + 1 && undeed.position.x >= player.position.x - 1 && undeed.position.y <= player.position.y + 1 && undeed.position.y <= player.position.y - 1) {
+                    if (undeed.health >= 10)
+                        undeed.health -= 10;
+                    else if (undeed.health < 10)
+                        undeed.health = 0;
+                    message_box ("You hit the Undead!");
+                }
+            }
+        }
+    }
+
+    else if (player.current_weapon == knife) {
+        if (player.knife_weapon == 0) {
+            message_box ("You have no knife!");
+        }
+        else if (player.knife_weapon > 0) {
+            player.knife_weapon -= 1;
+            int c = getch();
+            if (current_room () == 5) {
+                if (c == KEY_UP) {
+                    if (player.position.x == deamon.position.x && (player.position.y - 5 == deamon.position.y || player.position.y - 4 == deamon.position.y || player.position.y - 3 == deamon.position.y || player.position.y - 2 == deamon.position.y || player.position.y - 1 == deamon.position.y)) {
+                        if (deamon.health >= 12)
+                            deamon.health -= 12;
+                        else if (deamon.health < 12)
+                            deamon.health = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == deamon.position.x && (player.position.y + 5 == deamon.position.y || player.position.y + 4 == deamon.position.y || player.position.y + 3 == deamon.position.y || player.position.y + 2 == deamon.position.y || player.position.y + 1 == deamon.position.y)) {
+                        if (deamon.health >= 12)
+                            deamon.health -= 12;
+                        else if (deamon.health < 12)
+                            deamon.health = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == deamon.position.y && (player.position.x + 5 == deamon.position.x || player.position.x + 4 == deamon.position.x || player.position.x + 3 == deamon.position.x || player.position.x + 2 == deamon.position.x || player.position.x + 1 == deamon.position.x)) {
+                        if (deamon.health >= 12)
+                            deamon.health -= 12;
+                        else if (deamon.health < 12)
+                            deamon.health = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == deamon.position.y && (player.position.x - 5 == deamon.position.x || player.position.x - 4 == deamon.position.x || player.position.x - 3 == deamon.position.x || player.position.x - 2 == deamon.position.x || player.position.x - 1 == deamon.position.x)) {
+                        if (deamon.health >= 12)
+                            deamon.health -= 12;
+                        else if (deamon.health < 12)
+                            deamon.health = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 11) {
+                if (c == KEY_UP) {
+                    if (player.position.x == fire.position.x && (player.position.y - 5 == fire.position.y || player.position.y - 4 == fire.position.y || player.position.y - 3 == fire.position.y || player.position.y - 2 == fire.position.y || player.position.y - 1 == fire.position.y)) {
+                        if (fire.health >= 12)
+                            fire.health -= 12;
+                        else if (fire.health < 12)
+                            fire.health = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == fire.position.x && (player.position.y + 5 == fire.position.y || player.position.y + 4 == fire.position.y || player.position.y + 3 == fire.position.y || player.position.y + 2 == fire.position.y || player.position.y + 1 == fire.position.y)) {
+                        if (fire.health >= 12)
+                            fire.health -= 12;
+                        else if (fire.health < 12)
+                            fire.health = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == fire.position.y && (player.position.x + 5 == fire.position.x || player.position.x + 4 == fire.position.x || player.position.x + 3 == fire.position.x || player.position.x + 2 == fire.position.x || player.position.x + 1 == fire.position.x)) {
+                        if (fire.health >= 12)
+                            fire.health -= 12;
+                        else if (fire.health < 12)
+                            fire.health = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == fire.position.y && (player.position.x - 5 == fire.position.x || player.position.x - 4 == fire.position.x || player.position.x - 3 == fire.position.x || player.position.x - 2 == fire.position.x || player.position.x - 1 == fire.position.x)) {
+                        if (fire.health >= 12)
+                            fire.health -= 12;
+                        else if (fire.health < 12)
+                            fire.health = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 17) {
+                if (c == KEY_UP) {
+                    if (player.position.x == giant.position.x && (player.position.y - 5 == giant.position.y || player.position.y - 4 == giant.position.y || player.position.y - 3 == giant.position.y || player.position.y - 2 == giant.position.y || player.position.y - 1 == giant.position.y)) {
+                        if (giant.health >= 12)
+                            giant.health -= 12;
+                        else if (giant.health < 12)
+                            giant.health = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == giant.position.x && (player.position.y + 5 == giant.position.y || player.position.y + 4 == giant.position.y || player.position.y + 3 == giant.position.y || player.position.y + 2 == giant.position.y || player.position.y + 1 == giant.position.y)) {
+                        if (giant.health >= 12)
+                            giant.health -= 12;
+                        else if (giant.health < 12)
+                            giant.health = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == giant.position.y && (player.position.x + 5 == giant.position.x || player.position.x + 4 == giant.position.x || player.position.x + 3 == giant.position.x || player.position.x + 2 == giant.position.x || player.position.x + 1 == giant.position.x)) {
+                        if (giant.health >= 12)
+                            giant.health -= 12;
+                        else if (giant.health < 12)
+                            giant.health = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == giant.position.y && (player.position.x - 5 == giant.position.x || player.position.x - 4 == giant.position.x || player.position.x - 3 == giant.position.x || player.position.x - 2 == giant.position.x || player.position.x - 1 == giant.position.x)) {
+                        if (giant.health >= 12)
+                            giant.health -= 12;
+                        else if (giant.health < 12)
+                            giant.health = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 23) {
+                if (c == KEY_UP) {
+                    if (player.position.x == snake.position.x && (player.position.y - 5 == snake.position.y || player.position.y - 4 == snake.position.y || player.position.y - 3 == snake.position.y || player.position.y - 2 == snake.position.y || player.position.y - 1 == snake.position.y)) {
+                        if (snake.health >= 12)
+                            snake.health -= 12;
+                        else if (snake.health < 12)
+                            snake.health = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == snake.position.x && (player.position.y + 5 == snake.position.y || player.position.y + 4 == snake.position.y || player.position.y + 3 == snake.position.y || player.position.y + 2 == snake.position.y || player.position.y + 1 == snake.position.y)) {
+                        if (snake.health >= 12)
+                            snake.health -= 12;
+                        else if (snake.health < 12)
+                            snake.health = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == snake.position.y && (player.position.x + 5 == snake.position.x || player.position.x + 4 == snake.position.x || player.position.x + 3 == snake.position.x || player.position.x + 2 == snake.position.x || player.position.x + 1 == snake.position.x)) {
+                        if (snake.health >= 12)
+                            snake.health -= 12;
+                        else if (snake.health < 12)
+                            snake.health = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == snake.position.y && (player.position.x - 5 == snake.position.x || player.position.x - 4 == snake.position.x || player.position.x - 3 == snake.position.x || player.position.x - 2 == snake.position.x || player.position.x - 1 == snake.position.x)) {
+                        if (snake.health >= 12)
+                            snake.health -= 12;
+                        else if (snake.health < 12)
+                            snake.health = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 24) {
+                if (c == KEY_UP) {
+                    if (player.position.x == undeed.position.x && (player.position.y - 5 == undeed.position.y || player.position.y - 4 == undeed.position.y || player.position.y - 3 == undeed.position.y || player.position.y - 2 == undeed.position.y || player.position.y - 1 == undeed.position.y)) {
+                        if (undeed.health >= 12)
+                            undeed.health -= 12;
+                        else if (undeed.health < 12)
+                            undeed.health = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == undeed.position.x && (player.position.y + 5 == undeed.position.y || player.position.y + 4 == undeed.position.y || player.position.y + 3 == undeed.position.y || player.position.y + 2 == undeed.position.y || player.position.y + 1 == undeed.position.y)) {
+                        if (undeed.health >= 12)
+                            undeed.health -= 12;
+                        else if (undeed.health < 12)
+                            undeed.health = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == undeed.position.y && (player.position.x + 5 == undeed.position.x || player.position.x + 4 == undeed.position.x || player.position.x + 3 == undeed.position.x || player.position.x + 2 == undeed.position.x || player.position.x + 1 == undeed.position.x)) {
+                        if (undeed.health >= 12)
+                            undeed.health -= 12;
+                        else if (undeed.health < 12)
+                            undeed.health = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == undeed.position.y && (player.position.x - 5 == undeed.position.x || player.position.x - 4 == undeed.position.x || player.position.x - 3 == undeed.position.x || player.position.x - 2 == undeed.position.x || player.position.x - 1 == undeed.position.x)) {
+                        if (undeed.health >= 12)
+                            undeed.health -= 12;
+                        else if (undeed.health < 12)
+                            undeed.health = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted a knife!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a knife!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else {
+                if (c == KEY_UP) {
+                    if (is_point (player.position.y - 5, player.position.x)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted a knife!");
+                }
+                else if (c == KEY_DOWN) {
+                    if (is_point (player.position.y + 5, player.position.x)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted a knife!");
+                }
+                else if (c == KEY_RIGHT) {
+                    if (is_point (player.position.y, player.position.x + 5)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted a knife!");
+                }
+                else if (c == KEY_LEFT) {
+                    if (is_point (player.position.y, player.position.x - 5)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted a knife!");
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+        }
+        
+    }
+
+    else if (player.current_weapon == arrow) {
+        if (player.arrow_weapon == 0) {
+            message_box ("You have no arrow!");
+        }
+        else if (player.arrow_weapon > 0) {
+            player.arrow_weapon -= 1;
+            int c = getch();
+            if (current_room () == 5) {
+                if (c == KEY_UP) {
+                    if (player.position.x == deamon.position.x && (player.position.y - 5 == deamon.position.y || player.position.y - 4 == deamon.position.y || player.position.y - 3 == deamon.position.y || player.position.y - 2 == deamon.position.y || player.position.y - 1 == deamon.position.y)) {
+                        if (deamon.health >= 5)
+                            deamon.health -= 5;
+                        else if (deamon.health < 5)
+                            deamon.health = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == deamon.position.x && (player.position.y + 5 == deamon.position.y || player.position.y + 4 == deamon.position.y || player.position.y + 3 == deamon.position.y || player.position.y + 2 == deamon.position.y || player.position.y + 1 == deamon.position.y)) {
+                        if (deamon.health >= 5)
+                            deamon.health -= 5;
+                        else if (deamon.health < 5)
+                            deamon.health = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == deamon.position.y && (player.position.x + 5 == deamon.position.x || player.position.x + 4 == deamon.position.x || player.position.x + 3 == deamon.position.x || player.position.x + 2 == deamon.position.x || player.position.x + 1 == deamon.position.x)) {
+                        if (deamon.health >= 5)
+                            deamon.health -= 5;
+                        else if (deamon.health < 5)
+                            deamon.health = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == deamon.position.y && (player.position.x - 5 == deamon.position.x || player.position.x - 4 == deamon.position.x || player.position.x - 3 == deamon.position.x || player.position.x - 2 == deamon.position.x || player.position.x - 1 == deamon.position.x)) {
+                        if (deamon.health >= 5)
+                            deamon.health -= 5;
+                        else if (deamon.health < 5)
+                            deamon.health = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 11) {
+                if (c == KEY_UP) {
+                    if (player.position.x == fire.position.x && (player.position.y - 5 == fire.position.y || player.position.y - 4 == fire.position.y || player.position.y - 3 == fire.position.y || player.position.y - 2 == fire.position.y || player.position.y - 1 == fire.position.y)) {
+                        if (fire.health >= 5)
+                            fire.health -= 5;
+                        else if (fire.health < 5)
+                            fire.health = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == fire.position.x && (player.position.y + 5 == fire.position.y || player.position.y + 4 == fire.position.y || player.position.y + 3 == fire.position.y || player.position.y + 2 == fire.position.y || player.position.y + 1 == fire.position.y)) {
+                        if (fire.health >= 5)
+                            fire.health -= 5;
+                        else if (fire.health < 5)
+                            fire.health = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == fire.position.y && (player.position.x + 5 == fire.position.x || player.position.x + 4 == fire.position.x || player.position.x + 3 == fire.position.x || player.position.x + 2 == fire.position.x || player.position.x + 1 == fire.position.x)) {
+                        if (fire.health >= 5)
+                            fire.health -= 5;
+                        else if (fire.health < 5)
+                            fire.health = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == fire.position.y && (player.position.x - 5 == fire.position.x || player.position.x - 4 == fire.position.x || player.position.x - 3 == fire.position.x || player.position.x - 2 == fire.position.x || player.position.x - 1 == fire.position.x)) {
+                        if (fire.health >= 5)
+                            fire.health -= 5;
+                        else if (fire.health < 5)
+                            fire.health = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 17) {
+                if (c == KEY_UP) {
+                    if (player.position.x == giant.position.x && (player.position.y - 5 == giant.position.y || player.position.y - 4 == giant.position.y || player.position.y - 3 == giant.position.y || player.position.y - 2 == giant.position.y || player.position.y - 1 == giant.position.y)) {
+                        if (giant.health >= 5)
+                            giant.health -= 5;
+                        else if (giant.health < 5)
+                            giant.health = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == giant.position.x && (player.position.y + 5 == giant.position.y || player.position.y + 4 == giant.position.y || player.position.y + 3 == giant.position.y || player.position.y + 2 == giant.position.y || player.position.y + 1 == giant.position.y)) {
+                        if (giant.health >= 5)
+                            giant.health -= 5;
+                        else if (giant.health < 5)
+                            giant.health = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == giant.position.y && (player.position.x + 5 == giant.position.x || player.position.x + 4 == giant.position.x || player.position.x + 3 == giant.position.x || player.position.x + 2 == giant.position.x || player.position.x + 1 == giant.position.x)) {
+                        if (giant.health >= 5)
+                            giant.health -= 5;
+                        else if (giant.health < 5)
+                            giant.health = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == giant.position.y && (player.position.x - 5 == giant.position.x || player.position.x - 4 == giant.position.x || player.position.x - 3 == giant.position.x || player.position.x - 2 == giant.position.x || player.position.x - 1 == giant.position.x)) {
+                        if (giant.health >= 5)
+                            giant.health -= 5;
+                        else if (giant.health < 5)
+                            giant.health = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 23) {
+                if (c == KEY_UP) {
+                    if (player.position.x == snake.position.x && (player.position.y - 5 == snake.position.y || player.position.y - 4 == snake.position.y || player.position.y - 3 == snake.position.y || player.position.y - 2 == snake.position.y || player.position.y - 1 == snake.position.y)) {
+                        if (snake.health >= 5)
+                            snake.health -= 5;
+                        else if (snake.health < 5)
+                            snake.health = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == snake.position.x && (player.position.y + 5 == snake.position.y || player.position.y + 4 == snake.position.y || player.position.y + 3 == snake.position.y || player.position.y + 2 == snake.position.y || player.position.y + 1 == snake.position.y)) {
+                        if (snake.health >= 5)
+                            snake.health -= 5;
+                        else if (snake.health < 5)
+                            snake.health = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == snake.position.y && (player.position.x + 5 == snake.position.x || player.position.x + 4 == snake.position.x || player.position.x + 3 == snake.position.x || player.position.x + 2 == snake.position.x || player.position.x + 1 == snake.position.x)) {
+                        if (snake.health >= 5)
+                            snake.health -= 5;
+                        else if (snake.health < 5)
+                            snake.health = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == snake.position.y && (player.position.x - 5 == snake.position.x || player.position.x - 4 == snake.position.x || player.position.x - 3 == snake.position.x || player.position.x - 2 == snake.position.x || player.position.x - 1 == snake.position.x)) {
+                        if (snake.health >= 5)
+                            snake.health -= 5;
+                        else if (snake.health < 5)
+                            snake.health = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 24) {
+                if (c == KEY_UP) {
+                    if (player.position.x == undeed.position.x && (player.position.y - 5 == undeed.position.y || player.position.y - 4 == undeed.position.y || player.position.y - 3 == undeed.position.y || player.position.y - 2 == undeed.position.y || player.position.y - 1 == undeed.position.y)) {
+                        if (undeed.health >= 5)
+                            undeed.health -= 5;
+                        else if (undeed.health < 5)
+                            undeed.health = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == undeed.position.x && (player.position.y + 5 == undeed.position.y || player.position.y + 4 == undeed.position.y || player.position.y + 3 == undeed.position.y || player.position.y + 2 == undeed.position.y || player.position.y + 1 == undeed.position.y)) {
+                        if (undeed.health >= 5)
+                            undeed.health -= 5;
+                        else if (undeed.health < 5)
+                            undeed.health = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == undeed.position.y && (player.position.x + 5 == undeed.position.x || player.position.x + 4 == undeed.position.x || player.position.x + 3 == undeed.position.x || player.position.x + 2 == undeed.position.x || player.position.x + 1 == undeed.position.x)) {
+                        if (undeed.health >= 5)
+                            undeed.health -= 5;
+                        else if (undeed.health < 5)
+                            undeed.health = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == undeed.position.y && (player.position.x - 5 == undeed.position.x || player.position.x - 4 == undeed.position.x || player.position.x - 3 == undeed.position.x || player.position.x - 2 == undeed.position.x || player.position.x - 1 == undeed.position.x)) {
+                        if (undeed.health >= 5)
+                            undeed.health -= 5;
+                        else if (undeed.health < 5)
+                            undeed.health = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted an arrow!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted an arrow!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else {
+                if (c == KEY_UP) {
+                    if (is_point (player.position.y - 5, player.position.x)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted an arrow!");
+                }
+                else if (c == KEY_DOWN) {
+                    if (is_point (player.position.y + 5, player.position.x)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted an arrow!");
+                }
+                else if (c == KEY_RIGHT) {
+                    if (is_point (player.position.y, player.position.x + 5)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted an arrow!");
+                }
+                else if (c == KEY_LEFT) {
+                    if (is_point (player.position.y, player.position.x - 5)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "k");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted an arrow!");
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+        }
+    }
+
+    else if (player.current_weapon == wand) {
+        if (player.wand_weapon == 0) {
+            message_box ("You have no wand!");
+        }
+        else if (player.wand_weapon > 0) {
+            player.wand_weapon -= 1;
+            int c = getch();
+            if (current_room () == 5) {
+                if (c == KEY_UP) {
+                    if (player.position.x == deamon.position.x && (player.position.y - 5 == deamon.position.y || player.position.y - 4 == deamon.position.y || player.position.y - 3 == deamon.position.y || player.position.y - 2 == deamon.position.y || player.position.y - 1 == deamon.position.y)) {
+                        if (deamon.health >= 15)
+                            deamon.health -= 15;
+                        else if (deamon.health < 15)
+                            deamon.health = 0;
+                        deamon.move = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == deamon.position.x && (player.position.y + 5 == deamon.position.y || player.position.y + 4 == deamon.position.y || player.position.y + 3 == deamon.position.y || player.position.y + 2 == deamon.position.y || player.position.y + 1 == deamon.position.y)) {
+                        if (deamon.health >= 15)
+                            deamon.health -= 15;
+                        else if (deamon.health < 15)
+                            deamon.health = 0;
+                        deamon.move = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == deamon.position.y && (player.position.x + 5 == deamon.position.x || player.position.x + 4 == deamon.position.x || player.position.x + 3 == deamon.position.x || player.position.x + 2 == deamon.position.x || player.position.x + 1 == deamon.position.x)) {
+                        if (deamon.health >= 15)
+                            deamon.health -= 15;
+                        else if (deamon.health < 15)
+                            deamon.health = 0;
+                        deamon.move = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == deamon.position.y && (player.position.x - 5 == deamon.position.x || player.position.x - 4 == deamon.position.x || player.position.x - 3 == deamon.position.x || player.position.x - 2 == deamon.position.x || player.position.x - 1 == deamon.position.x)) {
+                        if (deamon.health >= 15)
+                            deamon.health -= 15;
+                        else if (deamon.health < 15)
+                            deamon.health = 0;
+                        deamon.move = 0;
+                        message_box ("You hit the Deamon!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 11) {
+                if (c == KEY_UP) {
+                    if (player.position.x == fire.position.x && (player.position.y - 5 == fire.position.y || player.position.y - 4 == fire.position.y || player.position.y - 3 == fire.position.y || player.position.y - 2 == fire.position.y || player.position.y - 1 == fire.position.y)) {
+                        if (fire.health >= 15)
+                            fire.health -= 15;
+                        else if (fire.health < 15)
+                            fire.health = 0;
+                        fire.move = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == fire.position.x && (player.position.y + 5 == fire.position.y || player.position.y + 4 == fire.position.y || player.position.y + 3 == fire.position.y || player.position.y + 2 == fire.position.y || player.position.y + 1 == fire.position.y)) {
+                        if (fire.health >= 15)
+                            fire.health -= 15;
+                        else if (fire.health < 15)
+                            fire.health = 0;
+                        fire.move = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == fire.position.y && (player.position.x + 5 == fire.position.x || player.position.x + 4 == fire.position.x || player.position.x + 3 == fire.position.x || player.position.x + 2 == fire.position.x || player.position.x + 1 == fire.position.x)) {
+                        if (fire.health >= 15)
+                            fire.health -= 15;
+                        else if (fire.health < 15)
+                            fire.health = 0;
+                        fire.move = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == fire.position.y && (player.position.x - 5 == fire.position.x || player.position.x - 4 == fire.position.x || player.position.x - 3 == fire.position.x || player.position.x - 2 == fire.position.x || player.position.x - 1 == fire.position.x)) {
+                        if (fire.health >= 15)
+                            fire.health -= 15;
+                        else if (fire.health < 15)
+                            fire.health = 0;
+                        fire.move = 0;
+                        message_box ("You hit the Fire Monster!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 17) {
+                if (c == KEY_UP) {
+                    if (player.position.x == giant.position.x && (player.position.y - 5 == giant.position.y || player.position.y - 4 == giant.position.y || player.position.y - 3 == giant.position.y || player.position.y - 2 == giant.position.y || player.position.y - 1 == giant.position.y)) {
+                        if (giant.health >= 15)
+                            giant.health -= 15;
+                        else if (giant.health < 15)
+                            giant.health = 0;
+                        giant.move = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == giant.position.x && (player.position.y + 5 == giant.position.y || player.position.y + 4 == giant.position.y || player.position.y + 3 == giant.position.y || player.position.y + 2 == giant.position.y || player.position.y + 1 == giant.position.y)) {
+                        if (giant.health >= 15)
+                            giant.health -= 15;
+                        else if (giant.health < 15)
+                            giant.health = 0;
+                        giant.move = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == giant.position.y && (player.position.x + 5 == giant.position.x || player.position.x + 4 == giant.position.x || player.position.x + 3 == giant.position.x || player.position.x + 2 == giant.position.x || player.position.x + 1 == giant.position.x)) {
+                        if (giant.health >= 15)
+                            giant.health -= 15;
+                        else if (giant.health < 15)
+                            giant.health = 0;
+                        giant.move = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == giant.position.y && (player.position.x - 5 == giant.position.x || player.position.x - 4 == giant.position.x || player.position.x - 3 == giant.position.x || player.position.x - 2 == giant.position.x || player.position.x - 1 == giant.position.x)) {
+                        if (giant.health >= 15)
+                            giant.health -= 15;
+                        else if (giant.health < 15)
+                            giant.health = 0;
+                        giant.move = 0;
+                        message_box ("You hit the Giant!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 23) {
+                if (c == KEY_UP) {
+                    if (player.position.x == snake.position.x && (player.position.y - 5 == snake.position.y || player.position.y - 4 == snake.position.y || player.position.y - 3 == snake.position.y || player.position.y - 2 == snake.position.y || player.position.y - 1 == snake.position.y)) {
+                        if (snake.health >= 15)
+                            snake.health -= 15;
+                        else if (snake.health < 15)
+                            snake.health = 0;
+                        snake.move = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == snake.position.x && (player.position.y + 5 == snake.position.y || player.position.y + 4 == snake.position.y || player.position.y + 3 == snake.position.y || player.position.y + 2 == snake.position.y || player.position.y + 1 == snake.position.y)) {
+                        if (snake.health >= 15)
+                            snake.health -= 15;
+                        else if (snake.health < 15)
+                            snake.health = 0;
+                        snake.move = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == snake.position.y && (player.position.x + 5 == snake.position.x || player.position.x + 4 == snake.position.x || player.position.x + 3 == snake.position.x || player.position.x + 2 == snake.position.x || player.position.x + 1 == snake.position.x)) {
+                        if (snake.health >= 15)
+                            snake.health -= 15;
+                        else if (snake.health < 15)
+                            snake.health = 0;
+                        snake.move = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == snake.position.y && (player.position.x - 5 == snake.position.x || player.position.x - 4 == snake.position.x || player.position.x - 3 == snake.position.x || player.position.x - 2 == snake.position.x || player.position.x - 1 == snake.position.x)) {
+                        if (snake.health >= 15)
+                            snake.health -= 15;
+                        else if (snake.health < 15)
+                            snake.health = 0;
+                        snake.move = 0;
+                        message_box ("You hit the Snake!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else if (current_room() == 24) {
+                if (c == KEY_UP) {
+                    if (player.position.x == undeed.position.x && (player.position.y - 5 == undeed.position.y || player.position.y - 4 == undeed.position.y || player.position.y - 3 == undeed.position.y || player.position.y - 2 == undeed.position.y || player.position.y - 1 == undeed.position.y)) {
+                        if (undeed.health >= 15)
+                            undeed.health -= 15;
+                        else if (undeed.health < 15)
+                            undeed.health = 0;
+                        snake.move = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y - 5, player.position.x)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_DOWN) {
+                    if (player.position.x == undeed.position.x && (player.position.y + 5 == undeed.position.y || player.position.y + 4 == undeed.position.y || player.position.y + 3 == undeed.position.y || player.position.y + 2 == undeed.position.y || player.position.y + 1 == undeed.position.y)) {
+                        if (undeed.health >= 15)
+                            undeed.health -= 15;
+                        else if (undeed.health < 15)
+                            undeed.health = 0;
+                        snake.move = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y + 5, player.position.x)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_RIGHT) {
+                    if (player.position.y == undeed.position.y && (player.position.x + 5 == undeed.position.x || player.position.x + 4 == undeed.position.x || player.position.x + 3 == undeed.position.x || player.position.x + 2 == undeed.position.x || player.position.x + 1 == undeed.position.x)) {
+                        if (undeed.health >= 15)
+                            undeed.health -= 15;
+                        else if (undeed.health < 15)
+                            undeed.health = 0;
+                        snake.move = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y, player.position.x + 5)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else if (c == KEY_LEFT) {
+                    if (player.position.y == undeed.position.y && (player.position.x - 5 == undeed.position.x || player.position.x - 4 == undeed.position.x || player.position.x - 3 == undeed.position.x || player.position.x - 2 == undeed.position.x || player.position.x - 1 == undeed.position.x)) {
+                        if (undeed.health >= 15)
+                            undeed.health -= 15;
+                        else if (undeed.health < 15)
+                            undeed.health = 0;
+                        snake.move = 0;
+                        message_box ("You hit the Undead!");
+                    }
+                    else if (is_point (player.position.y, player.position.x - 5)) {
+                        message_box ("You wasted a wand!");
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    else {
+                        message_box ("You wasted a wand!");
+                    }
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+            else {
+                if (c == KEY_UP) {
+                    if (is_point (player.position.y - 5, player.position.x)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y - 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted a wand!");
+                }
+                else if (c == KEY_DOWN) {
+                    if (is_point (player.position.y + 5, player.position.x)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y + 5, player.position.x, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted a wand!");
+                }
+                else if (c == KEY_RIGHT) {
+                    if (is_point (player.position.y, player.position.x + 5)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x + 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted a wand!");
+                }
+                else if (c == KEY_LEFT) {
+                    if (is_point (player.position.y, player.position.x - 5)) {
+                        attron (COLOR_PAIR (weapon_color));
+                        mvprintw (player.position.y, player.position.x - 5, "w");
+                        attroff (COLOR_PAIR (weapon_color));
+                    }
+                    message_box ("You wasted a wand!");
+                }
+                else {
+                    message_box (" invalid key!");
+                }
+            }
+        }
+    }
+}
+
+void spell_use () {
+    message_box ("choose a spell! (press s to get back.)");
+    spell_blink = 1;
+    while (1) {
+        spell_box ();
+        int c = getch ();
+        if (c == '6') {
+            if (player.health_spell > 0) {
+                message_box ("Your are using health spell.");
+            }
+            else 
+                message_box ("You have no health spell!");
+        }
+        else if (c == '7') {
+            if (player.speed_spell > 0) {
+                message_box ("Your are using speed spell.");
+                fast_speed = 15;
+            }
+            else 
+                message_box ("You have no speed spell!");
+        }
+        else if (c == '8') {
+            if (player.damage_spell > 0) {
+                message_box ("Your are using damage spell.");
+            }
+            else 
+                message_box ("You have no damage spell!");
+        }
+        else if (c == 's' || c == 'S') {
+            spell_blink = 0;
+            return;
+        }
+    }
+}
+
+void food_use () {
+    message_box ("choose your food! (press e to get back)");
+    food_blink = 1;
+    while (1) {
+        food_box ();
+        int c = getch ();
+        if (c == '9') {
+            if (player.food > 0) {
+                if (player.fullness < 10) {
+                    player.food--;
+                    player.fullness++;
+                    message_box (" eaten successfully!");
+                }
+                else {
+                    message_box (" You're already full! (press e)");
+                }
+            }
+            else {
+                message_box (" You have no food!");
+            }
+        }
+        else if (c == '0') {
+            if (player.magic_food > 0) {
+                if (player.fullness < 10) {
+                    player.magic_food--;
+                    player.fullness++;
+                    fast_speed = 15;
+                    message_box (" eaten successfully!");
+                }
+                else {
+                    message_box (" You're already full!");
+                }
+            }
+            else {
+                message_box (" You have no magic food!");
+            }
+        }
+        else if (c == 'e' || c == 'E') {
+            food_blink = 0;
+            return;
+        }
+    }
+}
+
+
